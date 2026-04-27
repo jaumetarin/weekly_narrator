@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String?   @unique
+  githubId  String?  @unique
+  name      String?
+  repositories Repository[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Repository {
+  id           Int         @id @default(autoincrement())
+  githubRepoId Int         @unique
+  name         String
+  fullName     String      @unique
+  isActive     Boolean     @default(true)
+  userId       Int
+  user         User        @relation(fields: [userId], references: [id])
+  changelogs   Changelog[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Changelog {
+  id           Int        @id @default(autoincrement())
+  title        String
+  content      String
+  repositoryId Int
+  repository   Repository @relation(fields: [repositoryId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
