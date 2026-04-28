@@ -5,13 +5,15 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import {GitHubModule} from "./github/github.module";  
+import { ChangelogModule } from './changelog/changelog.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({isGlobal: true}),
     PrismaModule,
     AuthModule,
-    GitHubModule
+    GitHubModule,
+    ChangelogModule,
   ],
   controllers: [AppController],
   providers: [AppService],
