@@ -71,20 +71,25 @@ export class AuthService {
     login: string;
     name: string| null;
     email?: string| null;
-  }) {
+  },
+    accessToken: string,) {
     const githubId = githubUser.id.toString();
 
     const existingUser = await this.prismaService.user.findUnique({
       where: { githubId },
     });
     if (existingUser) {
-      return existingUser;
+      return this.prismaService.user.update({
+        where: { id: existingUser.id },
+        data: { githubAccessToken: accessToken },
+      });
     }
     return this.prismaService.user.create({
       data: {
         githubId,
         name: githubUser.login,
-        email: githubUser.email ?? null
+        email: githubUser.email ?? null,
+        githubAccessToken: accessToken
         ,
       },
     });

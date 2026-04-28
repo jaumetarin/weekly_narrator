@@ -11,6 +11,7 @@ model User {
   id        Int      @id @default(autoincrement())
   email     String?   @unique
   githubId  String?  @unique
+  githubAccessToken String?
   name      String?
   repositories Repository[]
   createdAt DateTime @default(now())
