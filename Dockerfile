@@ -11,5 +11,7 @@ RUN npm install
 # Copiar código fuente
 COPY . .
 
+RUN npx prisma generate
+
 # Arrancar en modo desarrollo
 CMD ["npm", "run", "start:dev"]

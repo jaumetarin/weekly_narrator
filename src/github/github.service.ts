@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {NormalizerService} from './normalizer.service';
 
@@ -30,8 +36,9 @@ export class GitHubService {
     });
 
     if (!response.ok) {
-      throw new UnauthorizedException('Failed to fetch repositories from GitHub');
-    }
+  await this.handleGitHubError(response, 'Failed to fetch repositories from GitHub');
+}
+
 
     const repositories = await response.json();
 
@@ -98,9 +105,11 @@ async getCommitsForRepository(userId: number, repositoryId: number) {
   if (!repository) {
     throw new NotFoundException('Repository not found for this user');
   }
+    const sevenDaysAgo = this.getDateSevenDaysAgo();
 
-  const response = await fetch(
-    `https://api.github.com/repos/${repository.fullName}/commits?per_page=30`,
+    const response = await fetch(
+    `https://api.github.com/repos/${repository.fullName}/commits?since=${sevenDaysAgo.toISOString()}&per_page=100`,
+
     {
       headers: {
         Authorization: `Bearer ${user.githubAccessToken}`,
@@ -110,13 +119,17 @@ async getCommitsForRepository(userId: number, repositoryId: number) {
   );
 
   if (!response.ok) {
-    throw new UnauthorizedException('Failed to fetch commits from GitHub');
+  await this.handleGitHubError(response, 'Failed to fetch commits from GitHub');
   }
 
-  const commits = await response.json();
 
-return Promise.all(
-  commits.slice(0, 10).map(async (commit: any) => {
+  const commits = await response.json();
+  const recentCommits = commits.filter((commit: any) =>
+  this.isDateInLastSevenDays(commit.commit?.author?.date),
+  );
+
+   return Promise.all(
+   recentCommits.map(async (commit: any) => {
     const commitDetailsResponse = await fetch(
       `https://api.github.com/repos/${repository.fullName}/commits/${commit.sha}`,
       {
@@ -128,8 +141,12 @@ return Promise.all(
     );
 
     if (!commitDetailsResponse.ok) {
-      throw new UnauthorizedException('Failed to fetch commit details from GitHub');
-    }
+  await this.handleGitHubError(
+    commitDetailsResponse,
+    'Failed to fetch commit details from GitHub',
+  );
+}
+
 
     const commitDetails = await commitDetailsResponse.json();
 
@@ -174,8 +191,8 @@ async getPullRequestsForRepository(userId: number, repositoryId: number) {
   }
 
   const response = await fetch(
-    `https://api.github.com/repos/${repository.fullName}/pulls?state=all&per_page=30`,
-    {
+    `https://api.github.com/repos/${repository.fullName}/pulls?state=closed&sort=updated&direction=desc&per_page=100`
+    ,{
       headers: {
         Authorization: `Bearer ${user.githubAccessToken}`,
         Accept: 'application/vnd.github+json',
@@ -184,16 +201,21 @@ async getPullRequestsForRepository(userId: number, repositoryId: number) {
   );
 
   if (!response.ok) {
-    throw new UnauthorizedException('Failed to fetch pull requests from GitHub');
+    await this.handleGitHubError(response, 'Failed to fetch pull requests from GitHub');
   }
+
 
   const pullRequests = await response.json();
 
+  const weeklyPullRequests = pullRequests.filter((pullRequest: any) =>
+  this.isDateInLastSevenDays(pullRequest.merged_at),
+);
+
 return Promise.all(
-  pullRequests.slice(0, 10).map(async (pullRequest: any) => {
+  weeklyPullRequests.map(async (pullRequest: any) => {
     const pullRequestFilesResponse = await fetch(
-      `https://api.github.com/repos/${repository.fullName}/pulls/${pullRequest.number}/files`,
-      {
+    `https://api.github.com/repos/${repository.fullName}/pulls/${pullRequest.number}/files`
+      ,{
         headers: {
           Authorization: `Bearer ${user.githubAccessToken}`,
           Accept: 'application/vnd.github+json',
@@ -202,8 +224,12 @@ return Promise.all(
     );
 
     if (!pullRequestFilesResponse.ok) {
-      throw new UnauthorizedException('Failed to fetch pull request files from GitHub');
-    }
+    await this.handleGitHubError(
+    pullRequestFilesResponse,
+    'Failed to fetch pull request files from GitHub',
+    );
+}
+
 
     const pullRequestFiles = await pullRequestFilesResponse.json();
 
@@ -233,6 +259,60 @@ async getNormalizedPullRequestsForRepository(userId: number, repositoryId: numbe
   const pullRequests = await this.getPullRequestsForRepository(userId, repositoryId);
   return this.normalizerService.normalizePullRequests(pullRequests);
 }
+  private getDateSevenDaysAgo() {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    return sevenDaysAgo;
+  }
 
+  private isDateInLastSevenDays(dateString: string | null | undefined) {
+    if (!dateString) {
+      return false;
+    }
+
+    const date = new Date(dateString);
+    const sevenDaysAgo = this.getDateSevenDaysAgo();
+    const now = new Date();
+
+    return date >= sevenDaysAgo && date <= now;
+  }
+
+  private async handleGitHubError(
+    response: Response,
+    defaultMessage: string,
+  ): Promise<never> {
+    const errorText = await response.text();
+    const retryAfter = response.headers.get('retry-after');
+    const remaining = response.headers.get('x-ratelimit-remaining');
+
+    if (response.status === 401) {
+      throw new UnauthorizedException(`${defaultMessage}: invalid GitHub token`);
+    }
+
+    if (response.status === 404) {
+      throw new NotFoundException(`${defaultMessage}: resource not found on GitHub`);
+    }
+
+    if (
+      response.status === 403 &&
+      (remaining === '0' || errorText.toLowerCase().includes('rate limit'))
+    ) {
+      const retrySuffix = retryAfter
+        ? ` Retry after ${retryAfter} seconds.`
+        : '';
+
+      throw new ForbiddenException(
+        `${defaultMessage}: GitHub rate limit reached.${retrySuffix}`,
+      );
+    }
+
+    if (response.status === 403) {
+      throw new ForbiddenException(`${defaultMessage}: access forbidden by GitHub`);
+    }
+
+    throw new InternalServerErrorException(
+      `${defaultMessage}: GitHub responded with ${response.status}`,
+    );
+  }
 
 }
