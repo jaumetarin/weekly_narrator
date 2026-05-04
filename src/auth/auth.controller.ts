@@ -18,13 +18,14 @@ export class AuthController {
   @Get('github/callback')
   async handleGitHubCallback(
     @Query('code') code: string,
+    @Res() response: Response,
   ) {
     const accessToken = await this.authService.exchangeCodeForToken(code);
     const githubUser = await this.authService.getGitHubUserProfile(accessToken);
     const user = await this.authService.findOrCreateUser(githubUser, accessToken);
     const jwt = await this.authService.generateJwt(user);
-    return { message: 'GitHub authentication successful', accessToken : jwt, user };
-  }
+    const frontendCallbackUrl = this.authService.getFrontendCallbackUrl(jwt);
+    return response.redirect(frontendCallbackUrl);}
   
   @UseGuards(JwtAuthGuard)
   @Get('me')

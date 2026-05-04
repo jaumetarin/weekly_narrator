@@ -16,7 +16,7 @@ function validateEnv(env: Record<string, string | undefined>) {
     'GITHUB_CLIENT_ID',
     'GITHUB_CLIENT_SECRET',
     'GITHUB_CALLBACK_URL',
-    'REDIS_URL',
+    'FRONTEND_URL',
   ];
 
   const missing = required.filter((key) => !env[key]);

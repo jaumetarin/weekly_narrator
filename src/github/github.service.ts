@@ -18,67 +18,103 @@ export class GitHubService {
   ) {}
 
   async getRepositoriesForUser(userId: number) {
-    const user = await this.prismaService.user.findUnique({
-      where: { id: userId },
-    });
+  const user = await this.prismaService.user.findUnique({
+    where: { id: userId },
+  });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+  if (!user) {
+    throw new NotFoundException('User not found');
+  }
 
-    if (!user.githubAccessToken) {
-      throw new UnauthorizedException('GitHub access token is missing for this user');
-    }
+  if (!user.githubAccessToken) {
+    throw new UnauthorizedException('GitHub access token is missing for this user');
+  }
 
-    const response = await fetch('https://api.github.com/user/repos?sort=updated&per_page=100', {
+  const trackedRepositories = await this.prismaService.repository.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      githubRepoId: true,
+      isActive: true,
+    },
+  });
+
+  const trackedRepositoriesMap = new Map(
+    trackedRepositories.map((repository) => [
+      repository.githubRepoId,
+      repository,
+    ]),
+  );
+
+  const response = await fetch(
+    'https://api.github.com/user/repos?sort=updated&per_page=100',
+    {
       headers: {
         Authorization: `Bearer ${user.githubAccessToken}`,
         Accept: 'application/vnd.github+json',
       },
-    });
+    },
+  );
 
-    if (!response.ok) {
-  await this.handleGitHubError(response, 'Failed to fetch repositories from GitHub');
-}
+  if (!response.ok) {
+    await this.handleGitHubError(
+      response,
+      'Failed to fetch repositories from GitHub',
+    );
+  }
 
+  const repositories = await response.json();
 
-    const repositories = await response.json();
+  return repositories.map((repository: any) => {
+    const trackedRepository = trackedRepositoriesMap.get(repository.id);
 
-    return repositories.map((repository: any) => ({
+    return {
+      repositoryId: trackedRepository?.id ?? null,
       githubRepoId: repository.id,
       name: repository.name,
       fullName: repository.full_name,
       isPrivate: repository.private,
       defaultBranch: repository.default_branch,
       url: repository.html_url,
-    }));
-  }
+      isActive: trackedRepository?.isActive ?? false,
+    };
+  });
+}
+
 
   async syncRepositoriesForUser(
   userId: number,
   repositories: Array<SyncRepositoryItemDto>,
 ) {
-  return Promise.all(
-    repositories.map((repository) =>
-      this.prismaService.repository.upsert({
-        where: { githubRepoId: repository.githubRepoId },
-        update: {
-          name: repository.name,
-          fullName: repository.fullName,
-          userId,
-          isActive: true,
-        },
-        create: {
-          githubRepoId: repository.githubRepoId,
-          name: repository.name,
-          fullName: repository.fullName,
-          userId,
-          isActive: true,
-        },
-      }),
-    ),
-  );
+  return this.prismaService.$transaction(async (prisma) => {
+    await prisma.repository.updateMany({
+      where: { userId },
+      data: { isActive: false },
+    });
+
+    return Promise.all(
+      repositories.map((repository) =>
+        prisma.repository.upsert({
+          where: { githubRepoId: repository.githubRepoId },
+          update: {
+            name: repository.name,
+            fullName: repository.fullName,
+            userId,
+            isActive: true,
+          },
+          create: {
+            githubRepoId: repository.githubRepoId,
+            name: repository.name,
+            fullName: repository.fullName,
+            userId,
+            isActive: true,
+          },
+        }),
+      ),
+    );
+  });
 }
+
 
 async getCommitsForRepository(userId: number, repositoryId: number) {
   const user = await this.prismaService.user.findUnique({

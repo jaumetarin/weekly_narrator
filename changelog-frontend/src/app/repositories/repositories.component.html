@@ -1,0 +1,80 @@
+<main class="page">
+  <section class="panel">
+    <p class="eyebrow">Repositorios</p>
+    <div class="topbar">
+    <span></span>
+
+     <button type="button" class="logout-button" (click)="logout()">
+      Cerrar sesión
+    </button>
+    </div>
+
+    <h1>Elige qué repositorios quieres monitorizar.</h1>
+    <p class="intro">
+      Weekly Narrator usará esta selección para generar changelogs semanales a partir de la actividad reciente de GitHub.
+    </p>
+
+    @if (isLoading) {
+      <p class="status">Cargando repositorios...</p>
+    } @else if (errorMessage) {
+      <p class="status error">{{ errorMessage }}</p>
+    } @else {
+   <div class="actions">
+  <div class="actions-copy">
+    <p class="helper">
+      Marca los repositorios que quieras incluir en el seguimiento semanal.
+    </p>
+
+    <a class="secondary-link" routerLink="/changelogs">
+      Ver changelogs generados
+    </a>
+  </div>
+
+  <button
+    type="button"
+    class="save-button"
+    [disabled]="isSaving"
+    (click)="saveSelection()"
+  >
+    {{ isSaving ? 'Guardando...' : 'Guardar selección' }}
+  </button>
+</div>
+
+
+
+
+      @if (successMessage) {
+        <p class="status success">{{ successMessage }}</p>
+      }
+
+      @if (repositories.length === 0) {
+        <p class="status">No hay repositorios disponibles todavía.</p>
+      } @else {
+        <div class="repository-list">
+          @for (repository of repositories; track repository.githubRepoId) {
+            <button
+              type="button"
+              class="repository-card"
+              [class.active]="repository.isActive"
+              (click)="toggleRepository(repository)"
+            >
+              <div class="repository-card-top">
+                <p class="repository-name">{{ repository.name }}</p>
+                <span class="repository-toggle">
+                  {{ repository.isActive ? 'Seleccionado' : 'No seleccionado' }}
+                </span>
+              </div>
+
+              <p class="repository-full-name">{{ repository.fullName }}</p>
+
+              <p class="repository-meta">
+                {{ repository.isPrivate ? 'Privado' : 'Público' }}
+                · rama principal: {{ repository.defaultBranch }}
+              </p>
+            </button>
+          }
+        </div>
+      }
+    }
+  </section>
+</main>

@@ -1,0 +1,85 @@
+<main class="page">
+  <section class="panel">
+    <p class="eyebrow">Changelogs</p>
+    <div class="topbar">
+  <span></span>
+
+  <button type="button" class="logout-button" (click)="logout()">
+    Cerrar sesión
+  </button>
+</div>
+
+    <h1>Resumen semanal generado.</h1>
+    <p class="intro">
+      Aquí verás los changelogs generados para los repositorios que estés monitorizando.
+    </p>
+
+    @if (isLoading) {
+      <p class="status">Cargando changelogs...</p>
+    } @else if (errorMessage) {
+      <p class="status error">{{ errorMessage }}</p>
+    } @else {
+      <div class="generator-panel">
+  <div class="generator-header">
+
+    <button
+      type="button"
+      class="refresh-button"
+      [disabled]="isLoading || isGenerating"
+      (click)="refreshChangelogs()"
+    >
+      Recargar lista
+    </button>
+  </div>
+
+
+        @if (activeRepositories.length === 0) {
+          <p class="status">No tienes repositorios monitorizados todavía.</p>
+        } @else {
+          <div class="generator-list">
+            @for (repository of activeRepositories; track repository.githubRepoId) {
+              <div class="generator-item">
+                <div>
+                  <p class="generator-repository-name">{{ repository.name }}</p>
+                  <p class="generator-repository-full-name">
+                    {{ repository.fullName }}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  class="generate-button"
+                  [disabled]="isGenerating"
+                  (click)="generateForRepository(repository)"
+                >
+                  {{ isGenerating ? 'Generando...' : 'Generar ahora' }}
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      @if (successMessage) {
+        <p class="status success">{{ successMessage }}</p>
+      }
+
+      @if (changelogs.length === 0) {
+        <p class="status">Todavía no hay changelogs generados.</p>
+      } @else {
+        <div class="changelog-list">
+          @for (changelog of changelogs; track changelog.id) {
+            <article class="changelog-card">
+              <p class="changelog-repository">{{ changelog.repository.fullName }}</p>
+              <h2>{{ changelog.title }}</h2>
+              <p class="changelog-date">
+                Generado el {{ changelog.createdAt | date:'dd/MM/yyyy, HH:mm' }}
+              </p>
+              <p class="changelog-content">{{ changelog.content }}</p>
+            </article>
+          }
+        </div>
+      }
+    }
+  </section>
+</main>

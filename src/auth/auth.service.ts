@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import {JwtService} from '@nestjs/jwt';
@@ -100,5 +100,20 @@ export class AuthService {
     githubId: user.githubId ?? null,
   });
 }
+  getFrontendCallbackUrl(token: string) {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+
+    if (!frontendUrl) {
+      throw new InternalServerErrorException(
+        'FRONTEND_URL is not configured',
+      );
+    }
+
+    const params = new URLSearchParams({
+      token,
+    });
+
+    return `${frontendUrl}/auth/callback?${params.toString()}`;
+  }
 
 }
