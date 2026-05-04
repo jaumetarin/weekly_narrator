@@ -1,15 +1,39 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
+import { AppController } from '../src/app.controller';
+import { AppService } from '../src/app.service';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
+      controllers: [AppController],
+      providers: [
+        AppService,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) => {
+              if (key === 'APP_NAME') {
+                return 'weekly_narrator_api';
+              }
+              return undefined;
+            }),
+          },
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            user: {
+              count: jest.fn().mockResolvedValue(3),
+            },
+          },
+        },
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -20,7 +44,11 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/health')
       .expect(200)
-      .expect({ status: 'ok' , app:'weekly_narrator_api' });
+      .expect({
+        status: 'ok',
+        app: 'weekly_narrator_api',
+        usersCount: 3,
+      });
   });
 
   afterEach(async () => {
