@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {NormalizerService} from './normalizer.service';
+import { SyncRepositoryItemDto } from './dto/sync-repository-item.dto';
+
 
 @Injectable()
 export class GitHubService {
@@ -54,11 +56,7 @@ export class GitHubService {
 
   async syncRepositoriesForUser(
   userId: number,
-  repositories: Array<{
-    githubRepoId: number;
-    name: string;
-    fullName: string;
-  }>,
+  repositories: Array<SyncRepositoryItemDto>,
 ) {
   return Promise.all(
     repositories.map((repository) =>

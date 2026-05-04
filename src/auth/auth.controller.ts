@@ -2,7 +2,9 @@ import { Controller, Get, Query, Request, Res, UseGuards } from '@nestjs/common'
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guards';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -26,6 +28,7 @@ export class AuthController {
   
   @UseGuards(JwtAuthGuard)
   @Get('me')
+  @ApiBearerAuth()
   getAuthenticatedUser(@Request() request) {
   return request.user;
 }

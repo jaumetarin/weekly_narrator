@@ -3,6 +3,7 @@ import { Injectable, InternalServerErrorException, NotFoundException,
 import { PrismaService } from '../prisma/prisma.service';
 import { GitHubService } from '../github/github.service';
 import { ChangelogGeneratorService } from './changelog-generator.service';
+import { GetChangelogsQueryDto } from './dto/get-changelogs-query.dto';
 
 @Injectable()
 export class ChangelogService {
@@ -55,6 +56,55 @@ export class ChangelogService {
         repositoryId: repository.id,
       },
     });
+  }
+  async getChangelogsForUser(
+    userId: number,
+    query: GetChangelogsQueryDto,
+  ) {
+    const parsedPage = Number(query.page);
+    const parsedLimit = Number(query.limit);
+
+    const safePage = query.page ?? 1;
+    const safeLimit = query.limit ?? 10;
+
+
+    const skip = (safePage - 1) * safeLimit;
+
+    const where = {
+      repository: {
+        userId,
+      },
+    };
+
+    const [items, total] = await Promise.all([
+      this.prismaService.changelog.findMany({
+        where,
+        include: {
+          repository: {
+            select: {
+              id: true,
+              name: true,
+              fullName: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: safeLimit,
+      }),
+      this.prismaService.changelog.count({ where }),
+    ]);
+
+    return {
+      items,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+      },
+    };
   }
 
   
