@@ -1,6 +1,11 @@
 import {
   Controller,
+  ForbiddenException,
   Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Logger,
   Param,
   ParseIntPipe,
   Post,
@@ -8,22 +13,20 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/jwt-auth.guards';
-import { Queue } from 'bullmq';
-import { InjectQueue } from '@nestjs/bullmq';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ChangelogService } from './changelog.service';
 import { GetChangelogsQueryDto } from './dto/get-changelogs-query.dto';
-
 
 @ApiTags('changelogs')
 @ApiBearerAuth()
 @Controller('changelogs')
 export class ChangelogController {
+  private readonly logger = new Logger(ChangelogController.name);
   constructor(
-    @InjectQueue('changelog') 
-    private readonly changelogQueue: Queue,
     private readonly changelogService: ChangelogService,
+    private readonly configService: ConfigService,
   ) {}
 
   @UseGuards(JwtAuthGuard)
@@ -38,29 +41,45 @@ export class ChangelogController {
     );
   }
 
-
   @UseGuards(JwtAuthGuard)
   @Post('generate/:repositoryId')
-  generateChangelog(
+  async generateChangelog(
     @Request() request,
     @Param('repositoryId', ParseIntPipe) repositoryId: number,
   ) {
-   return this.changelogQueue.add(
-  'generate-changelog',
-  {
-    userId: request.user.id,
-    repositoryId,
-  },
-  {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 5000,
-    },
-  },
-);
+    const changelog = await this.changelogService.generateChangelogForRepository(
+      request.user.id,
+      repositoryId,
+    );
 
+    return {
+      message: 'Changelog generated successfully',
+      changelog,
+    };
   }
+  
+  @Post('generate')
+  @HttpCode(HttpStatus.ACCEPTED)
+  generateWeeklyChangelogs(
+    @Headers('x-api-key') apiKey: string | undefined,
+  ) {
+    const expectedApiKey = this.configService.get<string>('CRON_API_KEY');
 
+    if (!apiKey || apiKey !== expectedApiKey) {
+      throw new ForbiddenException('Invalid cron API key');
+    }
+
+      void this.changelogService.generateWeeklyChangelogs().catch((error) => {
+      this.logger.error(
+        'Weekly changelog generation failed',
+        error instanceof Error ? error.stack : undefined,
+      );
+    });
+
+
+    return {
+      message: 'Weekly changelog generation started',
+    };
+  }
 
 }

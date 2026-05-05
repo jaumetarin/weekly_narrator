@@ -4,10 +4,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import {GitHubModule} from "./github/github.module";  
+import { GitHubModule } from './github/github.module';
 import { ChangelogModule } from './changelog/changelog.module';
-import { BullModule } from '@nestjs/bullmq';
-import { ScheduleModule } from '@nestjs/schedule';
 
 function validateEnv(env: Record<string, string | undefined>) {
   const required = [
@@ -17,6 +15,7 @@ function validateEnv(env: Record<string, string | undefined>) {
     'GITHUB_CLIENT_SECRET',
     'GITHUB_CALLBACK_URL',
     'FRONTEND_URL',
+    'CRON_API_KEY',
   ];
 
   const missing = required.filter((key) => !env[key]);
@@ -32,19 +31,14 @@ function validateEnv(env: Record<string, string | undefined>) {
 
 @Module({
   imports: [
-    ConfigModule.forRoot({isGlobal: true, validate: validateEnv}),
-    BullModule.forRoot({
-      connection: {
-        host: 'redis',
-        port: 6379,
-      },
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv,
     }),
-    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     GitHubModule,
     ChangelogModule,
-    
   ],
   controllers: [AppController],
   providers: [AppService],

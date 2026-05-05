@@ -1,17 +1,30 @@
-# Imagen base
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
-# Directorio de trabajo
 WORKDIR /app
 
-# Instalar dependencias primero
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
-# Copiar código fuente
-COPY . .
-
+COPY prisma ./prisma
 RUN npx prisma generate
 
-# Arrancar en modo desarrollo
-CMD ["npm", "run", "start:dev"]
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
+COPY src ./src
+
+RUN npm ci --omit=dev
+
+
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --omit=dev
+
+COPY prisma ./prisma
+RUN npx prisma generate
+
+COPY --from=builder /app/dist ./dist
+
+CMD ["node", "dist/main"]

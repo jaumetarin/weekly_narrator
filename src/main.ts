@@ -6,19 +6,23 @@ import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
-  app.enableCors({
-    origin: 'http://localhost:4200',
-    credentials: true,
-  });
 
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
-  const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') ?? 3000;
+const configService = app.get(ConfigService);
+const frontendUrl = configService.get<string>('FRONTEND_URL');
+
+app.enableCors({
+  origin: frontendUrl,
+  credentials: true,
+});
+
+app.useGlobalPipes(new ValidationPipe({
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  transform: true,
+}));
+
+const port = configService.get<number>('PORT') ?? 3000;
+
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Weekly Narrator API')

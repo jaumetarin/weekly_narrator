@@ -106,6 +106,33 @@ export class ChangelogService {
       },
     };
   }
+  
+async generateWeeklyChangelogs() {
+  const repositories = await this.prismaService.repository.findMany({
+    where: {
+      isActive: true,
+    },
+    select: {
+      id: true,
+      userId: true,
+    },
+  });
+
+  const results = await Promise.allSettled(
+    repositories.map((repository) =>
+      this.generateChangelogForRepository(
+        repository.userId,
+        repository.id,
+      ),
+    ),
+  );
+
+  return {
+    totalRepositories: repositories.length,
+    successful: results.filter((result) => result.status === 'fulfilled').length,
+    failed: results.filter((result) => result.status === 'rejected').length,
+  };
+}
 
   
 }

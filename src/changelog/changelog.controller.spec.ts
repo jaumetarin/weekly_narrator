@@ -1,20 +1,27 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
+import { ConfigService } from '@nestjs/config';
 import { ChangelogController } from './changelog.controller';
 import { ChangelogService } from './changelog.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guards';
-import { getQueueToken } from '@nestjs/bullmq';
 
 describe('ChangelogController', () => {
   let app: INestApplication;
 
   const changelogServiceMock = {
     getChangelogsForUser: jest.fn(),
+    generateChangelogForRepository: jest.fn(),
+    generateWeeklyChangelogs: jest.fn(),
   };
 
-  const queueMock = {
-    add: jest.fn(),
+  const configServiceMock = {
+    get: jest.fn((key: string) => {
+      if (key === 'CRON_API_KEY') {
+        return 'test-cron-key';
+      }
+      return undefined;
+    }),
   };
 
   beforeEach(async () => {
@@ -26,8 +33,8 @@ describe('ChangelogController', () => {
           useValue: changelogServiceMock,
         },
         {
-          provide: getQueueToken('changelog'),
-          useValue: queueMock,
+          provide: ConfigService,
+          useValue: configServiceMock,
         },
       ],
     })
@@ -94,35 +101,65 @@ describe('ChangelogController', () => {
         },
       });
   });
-  
-    it('POST /changelogs/generate/:repositoryId should enqueue a changelog job', async () => {
-    queueMock.add.mockResolvedValue({
-      id: 'job-1',
-      name: 'generate-changelog',
-      data: {
-        userId: 1,
-        repositoryId: 3,
-      },
+
+  it('POST /changelogs/generate/:repositoryId should generate a changelog for the authenticated user', async () => {
+    changelogServiceMock.generateChangelogForRepository.mockResolvedValue({
+      id: 10,
+      title: 'Changelog for weekly_narrator',
+      content: 'Resumen semanal generado',
+      repositoryId: 3,
     });
 
     await request(app.getHttpServer())
       .post('/changelogs/generate/3')
-      .expect(201);
-
-    expect(queueMock.add).toHaveBeenCalledTimes(1);
-    expect(queueMock.add).toHaveBeenCalledWith(
-      'generate-changelog',
-      {
-        userId: 1,
-        repositoryId: 3,
-      },
-      {
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 5000,
+      .expect(201)
+      .expect({
+        message: 'Changelog generated successfully',
+        changelog: {
+          id: 10,
+          title: 'Changelog for weekly_narrator',
+          content: 'Resumen semanal generado',
+          repositoryId: 3,
         },
-      },
-    );
+      });
+
+    expect(
+      changelogServiceMock.generateChangelogForRepository,
+    ).toHaveBeenCalledTimes(1);
+
+    expect(
+      changelogServiceMock.generateChangelogForRepository,
+    ).toHaveBeenCalledWith(1, 3);
+  });
+
+  it('POST /changelogs/generate should return 202 when the cron API key is valid', async () => {
+    changelogServiceMock.generateWeeklyChangelogs.mockResolvedValue({
+      totalRepositories: 2,
+      successful: 2,
+      failed: 0,
+    });
+
+    await request(app.getHttpServer())
+      .post('/changelogs/generate')
+      .set('x-api-key', 'test-cron-key')
+      .expect(202)
+      .expect({
+        message: 'Weekly changelog generation started',
+      });
+
+    expect(
+      changelogServiceMock.generateWeeklyChangelogs,
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it('POST /changelogs/generate should return 403 when the cron API key is invalid', async () => {
+    await request(app.getHttpServer())
+      .post('/changelogs/generate')
+      .set('x-api-key', 'wrong-key')
+      .expect(403);
+
+    expect(
+      changelogServiceMock.generateWeeklyChangelogs,
+    ).not.toHaveBeenCalled();
   });
 });

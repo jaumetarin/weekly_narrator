@@ -1,98 +1,258 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Weekly Narrator
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Weekly Narrator convierte la actividad semanal de un repositorio de GitHub en un changelog narrativo y fácil de entender para personas no técnicas.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+La idea es resolver un problema muy real: muchos equipos acaban redactando a mano cada viernes un resumen de commits, pull requests y cambios importantes para compartirlo con producto, negocio o dirección. Este proyecto automatiza ese proceso sin exigir Conventional Commits ni formatos rígidos en el repositorio.
 
-## Description
+## Qué hace
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- Permite iniciar sesión con GitHub mediante OAuth
+- Recupera los repositorios del usuario autenticado
+- Permite seleccionar qué repositorios quieres monitorizar
+- Lee commits y pull requests recientes desde GitHub
+- Genera un changelog semanal con lenguaje natural
+- Guarda el resultado en PostgreSQL
+- Expone una API REST documentada con Swagger
+- Incluye un frontend Angular para login, selección de repositorios y visualización de changelogs
 
-## Project setup
+## Stack técnico
 
-```bash
-$ npm install
+### Backend
+- NestJS
+- TypeScript
+- Prisma
+- PostgreSQL
+- JWT
+- GitHub OAuth
+- Swagger
+- Jest
+
+### Frontend
+- Angular
+- TypeScript
+- Angular Router
+- HttpClient
+- AuthGuard
+- Interceptor JWT
+
+### Infraestructura
+- Docker Compose
+- GitHub Actions
+- Render
+- Neon
+- Vercel
+- cron-job.org
+
+## Arquitectura general
+
+El backend está dividido en módulos por responsabilidad:
+
+- `auth`: OAuth con GitHub, emisión y validación de JWT
+- `github`: acceso a repositorios, commits y pull requests del usuario
+- `changelog`: generación y lectura de changelogs
+- `prisma`: acceso a base de datos
+
+El frontend Angular vive en la carpeta `changelog-frontend` y está organizado en pantallas standalone:
+
+- login
+- callback OAuth
+- repositorios
+- changelogs
+
+## Flujo principal
+
+1. El usuario inicia sesión con GitHub
+2. El backend intercambia el `code` OAuth por un `access_token`
+3. El backend genera un JWT propio y redirige al frontend
+4. El frontend guarda el token y protege las rutas privadas
+5. El usuario selecciona los repositorios que quiere monitorizar
+6. El sistema recupera commits y pull requests desde GitHub
+7. El backend genera un changelog narrativo y lo guarda en PostgreSQL
+8. El frontend muestra el resultado en la pantalla de changelogs
+
+## Automatización semanal
+
+La generación semanal automática no depende de un cron interno del servidor.
+
+En producción, el disparador previsto es un servicio externo (`cron-job.org`) que llama al endpoint:
+
+```txt
+POST /changelogs/generate
 ```
 
-## Compile and run the project
+Ese endpoint está protegido con un header:
 
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+```txt
+X-API-Key
 ```
 
-## Run tests
+Cuando la clave coincide con `CRON_API_KEY`, el backend lanza la generación semanal para todos los repositorios activos y responde inmediatamente con `202 Accepted`.
+
+Este enfoque evita depender de que el servidor esté despierto justo a la hora del cron, algo especialmente importante en despliegues sobre Render free tier.
+
+## Ejecución en local
+
+### Requisitos
+- Docker
+- Docker Compose
+- Node.js 20+
+
+### Variables de entorno
+
+Copia el archivo `.env.example` y renómbralo como `.env`.
+
+Después, rellena con tus valores reales las variables sensibles, especialmente:
+
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- `JWT_SECRET`
+- `GROQ_API_KEY`
+- `CRON_API_KEY`
+
+El archivo `.env.example` documenta la estructura completa de configuración para desarrollo local.
+
+### Levantar backend y base de datos
+
+Desde la raíz del proyecto:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose up
 ```
 
-## Deployment
+Esto levanta:
+- backend NestJS
+- PostgreSQL
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### Levantar frontend Angular
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+En otra terminal:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+cd changelog-frontend
+npm install
+npm start
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+El frontend quedará disponible en:
 
-## Resources
+```txt
+http://localhost:4200
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+## Tests y build
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Backend
 
-## Support
+Desde la raíz del proyecto:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+npm install
+npm test -- --runInBand
+npm run build
+```
 
-## Stay in touch
+### Frontend
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Desde `changelog-frontend`:
 
-## License
+```bash
+npm install
+npm run build -- --configuration=production
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## API y documentación
+
+Cuando el backend está arrancado, Swagger queda disponible en:
+
+```txt
+http://localhost:3000/api
+```
+
+## Rutas principales del frontend
+
+- `/login`
+- `/auth/callback`
+- `/repositories`
+- `/changelogs`
+
+## Estado del proyecto
+
+Actualmente el proyecto incluye:
+
+- autenticación con GitHub
+- selección persistida de repositorios
+- generación manual de changelogs
+- endpoint protegido para trigger externo con `X-API-Key`
+- frontend Angular funcional
+- CI con GitHub Actions para backend y frontend
+
+## Deploy previsto
+
+### Backend
+- Render
+
+### Base de datos
+- Neon PostgreSQL
+- `DATABASE_URL` con pooler
+- `DIRECT_URL` sin pooler para migraciones
+
+### Frontend
+- Vercel
+- build Angular en modo producción usando `environment.prod.ts`
+
+### Trigger semanal
+- `cron-job.org`
+- llamada a `POST /changelogs/generate`
+- header `X-API-Key`
+
+## Checklist de deploy
+
+Para publicar el proyecto en producción:
+
+1. Crear la base de datos en Neon y obtener `DATABASE_URL` y `DIRECT_URL`
+2. Desplegar el backend en Render
+3. Configurar en Render las variables de entorno:
+   - `DATABASE_URL`
+   - `DIRECT_URL`
+   - `JWT_SECRET`
+   - `GITHUB_CLIENT_ID`
+   - `GITHUB_CLIENT_SECRET`
+   - `GITHUB_CALLBACK_URL`
+   - `FRONTEND_URL`
+   - `GROQ_API_KEY`
+   - `GROQ_MODEL`
+   - `CRON_API_KEY`
+4. Añadir la callback de producción en la GitHub OAuth App:
+   - `https://tu-backend.onrender.com/auth/github/callback`
+5. Actualizar `src/environments/environment.prod.ts` con la URL real del backend
+6. Desplegar el frontend Angular en Vercel usando la carpeta `changelog-frontend`
+7. Configurar `cron-job.org` para llamar a:
+   - `POST https://tu-backend.onrender.com/changelogs/generate`
+   - header `X-API-Key: <tu_clave>`
+8. Probar el flujo completo:
+   - login con GitHub
+   - selección de repositorios
+   - generación manual
+   - generación semanal por trigger externo
+
+## Próximos pasos
+
+- conectar URLs reales de producción
+- desplegar backend en Render
+- desplegar frontend en Vercel
+- añadir badge de GitHub Actions
+- completar README con enlaces públicos de demo y Swagger
+
+## Autor
+
+Proyecto desarrollado por Jaime Tarín como pieza de portfolio para practicar y demostrar:
+
+- NestJS
+- Angular
+- Prisma
+- JWT
+- OAuth
+- PostgreSQL
+- testing
+- CI/CD
+- despliegue full-stack
