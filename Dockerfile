@@ -6,13 +6,14 @@ COPY package*.json ./
 RUN npm ci
 
 COPY prisma ./prisma
-RUN npx prisma generate
-
 COPY tsconfig*.json ./
 COPY nest-cli.json ./
 COPY src ./src
 
-RUN npm ci --omit=dev
+RUN npx prisma generate
+RUN npm run build
+RUN ls -la
+RUN ls -la dist
 
 
 FROM node:20-alpine AS runner
@@ -20,7 +21,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 COPY prisma ./prisma
 RUN npx prisma generate
