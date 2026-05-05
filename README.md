@@ -1,8 +1,16 @@
 # Weekly Narrator
 
+[![CI](https://github.com/jaumetarin/weekly_narrator/actions/workflows/ci.yml/badge.svg)](https://github.com/jaumetarin/weekly_narrator/actions/workflows/ci.yml)
+
 Weekly Narrator convierte la actividad semanal de un repositorio de GitHub en un changelog narrativo y fácil de entender para personas no técnicas.
 
-La idea es resolver un problema muy real: muchos equipos acaban redactando a mano cada viernes un resumen de commits, pull requests y cambios importantes para compartirlo con producto, negocio o dirección. Este proyecto automatiza ese proceso sin exigir Conventional Commits ni formatos rígidos en el repositorio.
+La idea detrás del proyecto es resolver un problema muy real: muchos equipos acaban redactando a mano cada viernes un resumen de commits, pull requests y cambios importantes para compartirlo con producto, negocio o dirección. Este proyecto automatiza ese proceso sin exigir Conventional Commits ni formatos rígidos en el repositorio.
+
+## Demo
+
+- Frontend: [https://weekly-narrator.vercel.app](https://weekly-narrator.vercel.app)
+- Backend API: [https://weekly-narrator.onrender.com](https://weekly-narrator.onrender.com)
+- Swagger: [https://weekly-narrator.onrender.com/api](https://weekly-narrator.onrender.com/api)
 
 ## Qué hace
 
@@ -33,9 +41,10 @@ La idea es resolver un problema muy real: muchos equipos acaban redactando a man
 - Angular Router
 - HttpClient
 - AuthGuard
-- Interceptor JWT
+- JWT interceptor
 
 ### Infraestructura
+- Docker
 - Docker Compose
 - GitHub Actions
 - Render
@@ -66,15 +75,15 @@ El frontend Angular vive en la carpeta `changelog-frontend` y está organizado e
 3. El backend genera un JWT propio y redirige al frontend
 4. El frontend guarda el token y protege las rutas privadas
 5. El usuario selecciona los repositorios que quiere monitorizar
-6. El sistema recupera commits y pull requests desde GitHub
+6. El backend recupera commits y pull requests desde GitHub
 7. El backend genera un changelog narrativo y lo guarda en PostgreSQL
 8. El frontend muestra el resultado en la pantalla de changelogs
 
 ## Automatización semanal
 
-La generación semanal automática no depende de un cron interno del servidor.
+La generación semanal automática se dispara desde un servicio externo (`cron-job.org`) en lugar de depender de un cron interno del servidor.
 
-En producción, el disparador previsto es un servicio externo (`cron-job.org`) que llama al endpoint:
+El job semanal llama al endpoint:
 
 ```txt
 POST /changelogs/generate
@@ -88,7 +97,7 @@ X-API-Key
 
 Cuando la clave coincide con `CRON_API_KEY`, el backend lanza la generación semanal para todos los repositorios activos y responde inmediatamente con `202 Accepted`.
 
-Este enfoque evita depender de que el servidor esté despierto justo a la hora del cron, algo especialmente importante en despliegues sobre Render free tier.
+Este enfoque evita depender de que el servidor esté despierto justo a la hora del cron, algo especialmente importante en despliegues con spin-down por inactividad.
 
 ## Ejecución en local
 
@@ -120,6 +129,7 @@ docker compose up
 ```
 
 Esto levanta:
+
 - backend NestJS
 - PostgreSQL
 
@@ -168,6 +178,12 @@ Cuando el backend está arrancado, Swagger queda disponible en:
 http://localhost:3000/api
 ```
 
+En producción:
+
+```txt
+https://weekly-narrator.onrender.com/api
+```
+
 ## Rutas principales del frontend
 
 - `/login`
@@ -182,27 +198,30 @@ Actualmente el proyecto incluye:
 - autenticación con GitHub
 - selección persistida de repositorios
 - generación manual de changelogs
-- endpoint protegido para trigger externo con `X-API-Key`
+- generación semanal por trigger externo
+- endpoint protegido con `X-API-Key`
 - frontend Angular funcional
 - CI con GitHub Actions para backend y frontend
+- despliegue full-stack funcionando en producción
 
-## Deploy previsto
+## Deploy actual
+
+### Frontend
+- Vercel
+- [https://weekly-narrator.vercel.app](https://weekly-narrator.vercel.app)
 
 ### Backend
 - Render
+- [https://weekly-narrator.onrender.com](https://weekly-narrator.onrender.com)
 
 ### Base de datos
 - Neon PostgreSQL
 - `DATABASE_URL` con pooler
-- `DIRECT_URL` sin pooler para migraciones
-
-### Frontend
-- Vercel
-- build Angular en modo producción usando `environment.prod.ts`
+- `DIRECT_URL` sin pooler para migraciones Prisma
 
 ### Trigger semanal
-- `cron-job.org`
-- llamada a `POST /changelogs/generate`
+- cron-job.org
+- llamada `POST` a `https://weekly-narrator.onrender.com/changelogs/generate`
 - header `X-API-Key`
 
 ## Checklist de deploy
@@ -210,7 +229,7 @@ Actualmente el proyecto incluye:
 Para publicar el proyecto en producción:
 
 1. Crear la base de datos en Neon y obtener `DATABASE_URL` y `DIRECT_URL`
-2. Desplegar el backend en Render
+2. Desplegar el backend en Render con Docker
 3. Configurar en Render las variables de entorno:
    - `DATABASE_URL`
    - `DIRECT_URL`
@@ -223,25 +242,33 @@ Para publicar el proyecto en producción:
    - `GROQ_MODEL`
    - `CRON_API_KEY`
 4. Añadir la callback de producción en la GitHub OAuth App:
-   - `https://tu-backend.onrender.com/auth/github/callback`
-5. Actualizar `src/environments/environment.prod.ts` con la URL real del backend
+   - `https://weekly-narrator.onrender.com/auth/github/callback`
+5. Configurar `src/environments/environment.prod.ts` con la URL real del backend
 6. Desplegar el frontend Angular en Vercel usando la carpeta `changelog-frontend`
-7. Configurar `cron-job.org` para llamar a:
-   - `POST https://tu-backend.onrender.com/changelogs/generate`
-   - header `X-API-Key: <tu_clave>`
-8. Probar el flujo completo:
+7. Añadir `vercel.json` para servir correctamente las rutas del frontend
+8. Configurar `cron-job.org` para disparar la generación semanal
+9. Probar el flujo completo:
    - login con GitHub
    - selección de repositorios
    - generación manual
    - generación semanal por trigger externo
 
+## CI
+
+El proyecto incluye pipeline de GitHub Actions para:
+
+- instalar dependencias del backend
+- generar Prisma Client
+- ejecutar tests del backend
+- compilar el backend
+- compilar el frontend Angular en modo producción
+
 ## Próximos pasos
 
-- conectar URLs reales de producción
-- desplegar backend en Render
-- desplegar frontend en Vercel
-- añadir badge de GitHub Actions
-- completar README con enlaces públicos de demo y Swagger
+- añadir badge de GitHub Actions al README
+- mejorar observabilidad y logging del backend
+- refinar experiencia de error/loading en frontend
+- ampliar validaciones y tests end-to-end
 
 ## Autor
 
