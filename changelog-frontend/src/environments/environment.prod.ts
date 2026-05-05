@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://tu-api.onrender.com',
+  apiUrl: 'https://weekly-narrator.onrender.com',
 };
